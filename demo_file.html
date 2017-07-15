@@ -8,23 +8,8 @@
 
 var canvas = new Elemental.Canvas("canvas");
 
-var image = new Elemental.Sprite.Image("image.jpg");
-image.layer = 1;
-image.alpha = .8
-var i2 = new Elemental.Sprite.Polygon(3, 100);
-var thing = new Elemental.Sprite.Ellipse(30);
-
-i2.lineWidth = 10;
-i2.fillColor = "#aa0104"
-thing.lineWidth = 3;
-
-var anim = new Elemental.Sprite.Composite([image, i2, thing]);
-
-
 Elemental.Helpers.GameLoopManager.run(function(){
 	canvas.drawFill("#62e5ff");
-	anim.drawOnCanvas(canvas, canvas.center);
-	anim.rotation ++;
-}, 1000/60);
+});
 
 </script>
