@@ -2,14 +2,32 @@
 
 <script src="elemental.js"></script>
 
-<canvas id="canvas" width="500" height="500"></canvas>
+<canvas id="canvas" width="1000" height="700"></canvas>
 
 <script>
 
 var canvas = new Elemental.Canvas("canvas");
 
-Elemental.Helpers.GameLoopManager.run(function(){
-	canvas.drawFill("#62e5ff");
+var myShape = new Elemental.Sprite.Polygon(3, 100, config={
+	lineWidth: 10,
+	fillColor: "#f977e6"
+});
+
+var center = new Elemental.Sprite.Ellipse(5, config={
+	lineWidth: 10
+});
+
+Elemental.Start(function(){
+
+	canvas.drawFill("#3a59d7");
+
+	if (Elemental.Input.KeyPressed(Elemental.Keycodes.SPACE)) {
+		Elemental.Spinoff.Start(function(frame){
+			myShape.rotation++;
+		}, 60, id="shapeRotate");
+	}
+
+	canvas.drawSprite(myShape, Elemental.Input.MousePos);
 });
 
 </script>
