@@ -1,47 +1,5 @@
 var Elemental = {};
 
-Elemental.Input = class {
-	static get MousePos() {
-		return Elemental.Backend.mousePos;
-	}
-
-	static KeyHeld(keycode) {
-		var val = Elemental.Backend.keyStates[keycode];
-		if (val == 1) { return true; }
-		else { return false; }
-	}
-
-	static KeyPressed(keycode) {
-		var val = Elemental.Backend.keysDown[keycode];
-		if (val == 1) { return true; }
-		else { return false; }
-	}
-
-	static KeyReleased(keycode) {
-		var val = Elemental.Backend.keysUp[keycode];
-		if (val == 1) { return true; }
-		else { return false; }
-	}
-
-	static MouseHeld(button) {
-		var val = Elemental.Backend.mouseState[button];
-		if (val == 1) { return true; }
-		else { return false; }
-	}
-
-	static MousePressed(button) {
-		var val = Elemental.Backend.mouseDown[button];
-		if (val == 1) { return true; }
-		else { return false; }
-	}
-
-	static MouseReleased(button) {
-		var val = Elemental.Backend.mouseUp[button];
-		if (val == 1) { return true; }
-		else { return false; }
-	}
-}
-
 Elemental.Backend = {
 	mousePos: {x: 0, y: 0},
 	keyStates: {},
@@ -51,52 +9,7 @@ Elemental.Backend = {
 	mouseDown: {},
 	mouseUp: {},
 	spinoffs: [],
-	spinoffNames: []
-}
-
-Elemental.Spinoff = class {
-	constructor(func, length, name="") {
-		this.func = func;
-		this.length = length;
-		this.frame = 0;
-		this.name = name;
-	}
-
-	doFrame() {
-		this.func(this.frame);
-		this.frame++;
-		if (this.frame > this.length) {
-			Elemental.Spinoff.Kill(this);
-		}
-	}
-
-	static Start(func, length, id="") {
-		if (Elemental.Backend.spinoffNames.indexOf(id) == -1) {
-			var so = new Elemental.Spinoff(func, length, name=id);
-			Elemental.Backend.spinoffs.push(so);
-			if (so.name != "") {
-				Elemental.Backend.spinoffNames.push(so.name);
-			}
-			return so;
-		}
-	}
-
-	static Kill(spinoff) {
-		var index = Elemental.Backend.spinoffs.indexOf(spinoff);
-		if (index != -1) {
- 			Elemental.Backend.spinoffs.splice(index, 1);
-		}
-		var index2 = Elemental.Backend.spinoffNames.indexOf(spinoff.name);
-		if (index2 != -1) {
- 			Elemental.Backend.spinoffNames.splice(index2, 1);
-		}
-	}
-
-	static RunAll() {
-		Elemental.Backend.spinoffs.forEach(function(so){
-			so.doFrame();
-		});
-	}
+	frameFunctions: []
 }
 
 // GameLoopManager By Javier Arevalo
@@ -154,9 +67,15 @@ Elemental.Backend.Timer = new function() {
 	}
 }
 
-Elemental.Start = function(func) {
+Elemental.AddLogic = function(func) {
+	Elemental.Backend.frameFunctions.push(func);
+}
+
+Elemental.Start = function() {
 	Elemental.Backend.Timer.start(function(time){
-		func(time);
+		Elemental.Backend.frameFunctions.forEach(function(func){
+			func(time);
+		});
 		Elemental.Spinoff.RunAll();
 		Elemental.Backend.ResetKeys();
 	});
@@ -242,7 +161,7 @@ Elemental.Canvas = class {
 	}
 
 	drawLine(p1, p2, color="black", width=1, caps="round") {
-		this.context.strokeStyle = color;
+		this.context.strokeStyle = Elemental.Helpers.CssColor(color);
 		this.context.lineWidth = width;
 		this.context.lineCap = caps;
 
@@ -253,13 +172,13 @@ Elemental.Canvas = class {
 	}
 
 	drawText(font, text, posn, color="black") {
-		this.context.fillStyle = color;
+		this.context.fillStyle = Elemental.Helpers.CssColor(color);
 		this.context.font = font;
 		this.context.fillText(text, posn.x, posn.y);
 	}
 
 	drawRect(color, posn, w, h) {
-		this.context.fillStyle = color;
+		this.context.fillStyle = Elemental.Helpers.CssColor(color);
 		this.context.fillRect(posn.x, posn.y, w, h);
 	}
 
@@ -269,6 +188,48 @@ Elemental.Canvas = class {
 
 	drawSprite(sprite, posn) {
 		sprite.drawOnCanvas(this, posn);
+	}
+}
+
+Elemental.Input = class {
+	static get MousePos() {
+		return Elemental.Backend.mousePos;
+	}
+
+	static KeyHeld(keycode) {
+		var val = Elemental.Backend.keyStates[keycode];
+		if (val == 1) { return true; }
+		else { return false; }
+	}
+
+	static KeyPressed(keycode) {
+		var val = Elemental.Backend.keysDown[keycode];
+		if (val == 1) { return true; }
+		else { return false; }
+	}
+
+	static KeyReleased(keycode) {
+		var val = Elemental.Backend.keysUp[keycode];
+		if (val == 1) { return true; }
+		else { return false; }
+	}
+
+	static MouseHeld(button) {
+		var val = Elemental.Backend.mouseState[button];
+		if (val == 1) { return true; }
+		else { return false; }
+	}
+
+	static MousePressed(button) {
+		var val = Elemental.Backend.mouseDown[button];
+		if (val == 1) { return true; }
+		else { return false; }
+	}
+
+	static MouseReleased(button) {
+		var val = Elemental.Backend.mouseUp[button];
+		if (val == 1) { return true; }
+		else { return false; }
 	}
 }
 
@@ -317,14 +278,14 @@ Elemental.Sprite.Points = class extends Elemental.Sprite {
 	}
 
 	drawOnCanvas(canvas, posn) {
-		canvas.context.strokeStyle = this.lineColor;
+		canvas.context.strokeStyle = Elemental.Helpers.CssColor(this.lineColor);
 		canvas.context.lineWidth = this.lineWidth;
 		canvas.context.lineCap = this.lineCaps;
 		canvas.context.lineJoin = this.lineCorners;
 		canvas.context.miterLimit = this.lineMiterLimit;
 		canvas.context.setLineDash([this.lineDashWidth, this.lineDashSpacing]);
 		canvas.context.lineDashOffset = this.lineDashOffset;
-		canvas.context.fillStyle = this.fillColor;
+		canvas.context.fillStyle = Elemental.Helpers.CssColor(this.fillColor);
 
 		canvas.context.translate(posn.x, posn.y);
 		canvas.context.rotate(Elemental.Helpers.ToRadians(this.rotation));
@@ -383,14 +344,14 @@ Elemental.Sprite.Polygon = class extends Elemental.Sprite {
 	}
 
 	drawOnCanvas(canvas, posn) {
-		canvas.context.strokeStyle = this.lineColor;
+		canvas.context.strokeStyle = Elemental.Helpers.CssColor(this.lineColor);
 		canvas.context.lineWidth = this.lineWidth;
 		canvas.context.lineCap = this.lineCaps;
 		canvas.context.lineJoin = this.lineCorners;
 		canvas.context.miterLimit = this.lineMiterLimit;
 		canvas.context.setLineDash([this.lineDashWidth, this.lineDashSpacing]);
 		canvas.context.lineDashOffset = this.lineDashOffset;
-		canvas.context.fillStyle = this.fillColor;
+		canvas.context.fillStyle = Elemental.Helpers.CssColor(this.fillColor);
 
 		canvas.context.translate(posn.x, posn.y);
 		canvas.context.rotate(Elemental.Helpers.ToRadians(this.rotation));
@@ -449,14 +410,14 @@ Elemental.Sprite.Ellipse = class extends Elemental.Sprite {
 	}
 
 	drawOnCanvas(canvas, posn) {
-		canvas.context.strokeStyle = this.lineColor;
+		canvas.context.strokeStyle = Elemental.Helpers.CssColor(this.lineColor);
 		canvas.context.lineWidth = this.lineWidth;
 		canvas.context.lineCap = this.lineCaps;
 		canvas.context.lineJoin = this.lineCorners;
 		canvas.context.miterLimit = this.lineMiterLimit;
 		canvas.context.setLineDash([this.lineDashWidth, this.lineDashSpacing]);
 		canvas.context.lineDashOffset = this.lineDashOffset;
-		canvas.context.fillStyle = this.fillColor;
+		canvas.context.fillStyle = Elemental.Helpers.CssColor(this.fillColor);
 
 		canvas.context.translate(posn.x, posn.y);
 		canvas.context.rotate(Elemental.Helpers.ToRadians(this.rotation));
@@ -581,6 +542,117 @@ Elemental.Sprite.Animation = class extends Elemental.Sprite {
 
 Elemental.Audio = null;
 
+Elemental.Spinoff = class {
+	constructor(duration, unique=false) {
+		this.duration = duration;
+		this.unique = unique;
+		this.frame = 0;
+		this.returning = false;
+
+		this.running = false;
+
+		this.funcStart = function(){}
+		this.funcFrame = function(){}
+		this.funcEnd = function(){}
+		this.funcReturn = null;
+	}
+
+	onStart(func) { this.funcStart = func; }
+	onFrame(func) { this.funcFrame = func; }
+	onEnd(func) { this.funcEnd = func; }
+	onReturn(func) { this.funcReturn = func; }
+
+	end() {
+		this.funcEnd();
+		this.returning = false;
+		this.running = false;
+		this.frame = 0;
+		var ind = Elemental.Backend.spinoffs.indexOf(this);
+		if (ind != -1) {
+			Elemental.Backend.spinoffs.splice(ind, 1);
+		}
+	}
+
+	start() {
+		if (this.unique) {
+			if (!this.running) {
+				Elemental.Backend.spinoffs.push(this);
+			}
+		} else {
+			Elemental.Backend.spinoffs.push(this);
+		}
+		this.running = true;
+	}
+
+	doFrame() {
+		if (this.frame == 0) { this.funcStart(); }
+
+		if (this.returning) { this.funcReturn((this.duration*2)-this.frame-1); }
+		else { this.funcFrame(this.frame); }
+
+		this.frame++;
+
+		if (this.funcReturn != null) {
+			if (this.frame >= this.duration) {
+				this.returning = true;
+			}
+			if (this.frame >= this.duration * 2) {
+				this.end();
+			}
+		} else {
+			if (this.frame >= this.duration) {
+				this.end();
+			}
+		}
+	}
+
+	static RunAll() {
+		Elemental.Backend.spinoffs.forEach(function(so){
+			so.doFrame();
+		});
+	}
+}
+
+Elemental.Color = class {
+	constructor() {
+		this._red = 0;
+		this._green = 0;
+		this._blue = 0;
+
+		if (arguments.length == 1) {
+			this.parseFrom(arguments[0]);
+		} else {
+			this._red = arguments[0];
+			this._green = arguments[1];
+			this._blue = arguments[2];
+		}
+	}
+
+	get red() { return this._red; }
+	get green() { return this._green; }
+	get blue() { return this._blue; }
+
+	set red(val) { this._red = Elemental.Helpers.Constrict(val, 0, 255); }
+	set green(val) { this._green = Elemental.Helpers.Constrict(val, 0, 255); }
+	set blue(val) { this._blue = Elemental.Helpers.Constrict(val, 0, 255); }
+
+	cssColor() {
+		return `rgb(${this.red}, ${this.green}, ${this.blue})`
+	}
+
+	parseFrom(string) {
+		var array = string.substring(4, string.length-1).replace(/ /g, '').split(',');
+		array = array.map(function(x) { return parseInt(x) });
+		this._red = array[0];
+		this._green = array[1];
+		this._blue = array[2];
+	}
+
+	static IsColor(color) {
+		return color instanceof Elemental.Color;
+	}
+}
+
 // Helper object filled with helper functions and classes
 Elemental.Helpers = {}
 
@@ -627,6 +699,20 @@ Elemental.Helpers.LoadImage = function(url) {
 
 Elemental.Helpers.Now = function() {
 	return new Date().getTime() / 1000;
+}
+
+Elemental.Helpers.Constrict = function(val, min, max) {
+	if (val < min) { return min; }
+	if (val > max) { return max; }
+	else { return val; }
+}
+
+Elemental.Helpers.CssColor = function(color) {
+	if (Elemental.Color.IsColor(color)) {
+		return color.cssColor();
+	} else {
+		return color;
+	}
 }
 
 // Vector class and function definitions
