@@ -7,12 +7,18 @@ Elemental.Canvas = class {
 		this.context = this.canvas.getContext("2d");
 		this.fullscreen = fullscreen;
 
+		this.mousepos = Elemental.Vector.Empty;
+
 		this.canvas.addEventListener("contextmenu", event => event.preventDefault());
+
+		var parent = this;
+		this.canvas.addEventListener("mousemove", function(event) {
+			parent.mousepos = new Elemental.Vector(event.offsetX, event.offsetY);
+		});
 
 		if (this.fullscreen) {
 			this.fillWindow();
 			document.body.style.margin = 0;
-			var parent = this;
 			window.addEventListener("resize", function(event){
 				parent.fillWindow();
 			});
@@ -82,7 +88,7 @@ Elemental.Game = class {
 		this.mouseState = {pressed: {}, held: {}, released: {}};
 
 		this.logic = [];
-		this.triggers = {};
+		this.spinoffs = [];
 	}
 
 	addLogic(func) {
@@ -155,6 +161,11 @@ Elemental.Game = class {
 		this.mouseState.held[button] = 0;
 	}
 
+	runSpinoff(so) {
+		so.parent = this;
+		so.start();
+	}
+
 	start() {
 		var parent = this;
 
@@ -176,6 +187,10 @@ Elemental.Game = class {
 
 			parent.logic.forEach(function(func){
 				func(parent, time);
+			});
+
+			parent.spinoffs.forEach(function(so){
+				so.doFrame();
 			});
 
 			parent.keyboardState.pressed = {};
@@ -775,6 +790,7 @@ Elemental.Spinoff = class {
 		this.unique = unique;
 		this.frame = 0;
 		this.returning = false;
+		this.parent = null;
 
 		this.running = false;
 
@@ -794,19 +810,19 @@ Elemental.Spinoff = class {
 		this.returning = false;
 		this.running = false;
 		this.frame = 0;
-		var ind = Elemental.Backend.spinoffs.indexOf(this);
+		var ind = this.parent.spinoffs.indexOf(this);
 		if (ind != -1) {
-			Elemental.Backend.spinoffs.splice(ind, 1);
+			this.parent.spinoffs.splice(ind, 1);
 		}
 	}
 
 	start() {
 		if (this.unique) {
 			if (!this.running) {
-				Elemental.Backend.spinoffs.push(this);
+				this.parent.spinoffs.push(this);
 			}
 		} else {
-			Elemental.Backend.spinoffs.push(this);
+			this.parent.spinoffs.push(this);
 		}
 		this.running = true;
 	}

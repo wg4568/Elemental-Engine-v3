@@ -1,0 +1,39 @@
+<script src="elemental.js"></script>
+
+<canvas id="canvas" width="500" height="500"></canvas>
+
+<script>
+
+var canvas = new Elemental.Canvas("canvas");
+var game = new Elemental.Game();
+
+var shape = new Elemental.Sprite.Polygon(5, 100, config={layer:1});
+var shape2 = new Elemental.Sprite.Ellipse(100);
+var shape3 = new Elemental.Sprite.Points([
+	new Elemental.Vector(0, 0),
+	new Elemental.Vector(100, 0),
+	new Elemental.Vector(100, 150),
+	new Elemental.Vector(0, 100)
+]);
+
+var comp = new Elemental.Sprite.Composite([shape, shape2, shape3]);
+
+var background = new Elemental.Color(255, 0, 0);
+
+var hue_fader = new Elemental.Spinoff(60, unique=true);
+hue_fader.onFrame(function(){
+	background.hue ++;
+});
+hue_fader.onReturn(function(){
+	background.hue --;
+});
+
+game.addLogic(function(){
+	canvas.drawFill(background);
+
+	if (game.mouseReleased(Elemental.Mousecodes.LEFT)) game.runSpinoff(hue_fader);
+});
+
+game.start();
+
+</script>
