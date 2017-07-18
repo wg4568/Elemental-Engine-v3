@@ -1,89 +1,44 @@
+// Import websockets
 const WebSocket = require("ws");
 
-const server = new WebSocket.Server({port: 8080});
-const SERVER_RATE = 60;
+// Elemental container for everything
+var Elemental = {};
 
-var clients = [];
-clients.Print = function() {
-	var str = "[";
-	clients.forEach(function(client, ind){
-		if (ind != 0) str += " ";
-		str += client.toString();
-	});
-	str += "]";
-	console.log(str);
-}
-
-class Tools {
-	static GenerateID() {
-		var s1 = Math.random().toString(36).substring(2, 15);
-		var s2 = Math.random().toString(36).substring(2, 15);
-		return s1 + s2
-	}
-
-	static GenerateSafeID() {
-		var id = Tools.GenerateID();
-		while (Tools.ClientByID(id) != null) {
-			id = Tools.GenerateID();
-		}
-		return id;
-	}
-
-	static ClientByID(id) {
-		var selected = null;
-		clients.forEach(function(client){
-			if (client.id == id) {
-				selected = client;
-			}
-		});
-		return selected;
-	}
-}
-
-class Client {
-	constructor(socket) {
+// Client class for representing a client connection
+Elemental.Client = class {
+	constructor(server, socket) {
+		this.server = server;
 		this.socket = socket;
-		this.id = Tools.GenerateSafeID();
 
-		var parent = this;
-		this.socket.on("close", function(){
-			parent.onClose();
-		});
-		this.socket.on("message", function(message) {
-			parent.onMessage(message);
-		});
+		this.id = Elemental.Helpers.RandomString();
 
 		this.keyboardState = {pressed: {}, held: {}, released: {}};
 		this.mouseState = {pressed: {}, held: {}, released: {}};
-		this.mousePos = Vector.Empty;
-	}
+		this.mousePos = Elemental.Vector.Empty;
 
-	log(message) {
-		console.log(this.toString(), message);
+		var parent = this;
+		this.socket.on("close", function(){
+			parent.server.disconnect(parent);
+		});
+		this.socket.on("message", function(message) {
+			parent.message(message);
+		});
 	}
 
 	sendJson(obj) {
 		this.socket.send(JSON.stringify(obj));
 	}
 
-	toString() {
+	callTrigger(name, data) {
+		this.sendJson({
+			"event": "trigger",
+			"trigger": name,
+			"data": data
+		});
+	}
+
+	string() {
 		return `Client(${this.id})`;
-	}
-
-	onClose() {
-		var ind = clients.indexOf(this);
-		if (ind != -1) clients.splice(ind, 1);
-		this.log("Disconnected");
-	}
-
-	doLogic() {
-		clientLogic(this);
-
-		this.keyboardState.pressed = {};
-		this.keyboardState.released = {};
-
-		this.mouseState.pressed = {};
-		this.mouseState.released = {};
 	}
 
 	keyPressed(keycode) {
@@ -118,8 +73,9 @@ class Client {
 		else return false;
 	}
 
-	onMessage(msgRaw) {
-		var message = JSON.parse(msgRaw);
+	message(raw) {
+		// todo, add error handling so the server doesn't just crash when someone sends bad data
+		var message = JSON.parse(raw);
 
 		if (message.event == "keyPressed") {
 			if (!this.keyHeld(message.key)) {
@@ -142,39 +98,145 @@ class Client {
 			this.mouseState.held[message.button] = 0;
 		}
 		if (message.event == "mouseMoved") {
-			this.mousePos = new Vector(message.position.x, message.position.y);
+			this.mousePos = new Elemental.Vector(message.position.x, message.position.y);
 		}
 	}
 }
 
-setInterval(function(){
-	clients.forEach(function(client){
-		client.doLogic();
-	});
-}, 1000/SERVER_RATE);
+// Server object, for handling connections
+Elemental.Server = class {
+	constructor(port, tickrate=60) {
+		this.port = port;
+		this.tickrate = tickrate;
+		this.server = new WebSocket.Server({port: port});
 
-server.on("connection", function(socket) {
+		this.clients = [];
+	}
 
-	var client = new Client(socket);
-	client.log("Connected");
-	clients.push(client);
+	// User defined functions
+	onConnect(client) {}
+	gameLogic(server) {}
+	clientLogic(server) {}
+	onDisconnect(client) {}
 
-});
+	broadcastTrigger(name, data) {
+		this.clients.forEach(function(client) {
+			client.callTrigger(name, data);
+		});
+	}
 
-function clientLogic(client) {
-	posns = {};
-	clients.forEach(function(cli){
-		posns[cli.id] = {x: cli.mousePos.x, y: cli.mousePos.y};
-	});
-	client.sendJson({
-		"kind": "trigger",
-		"trigger": "set_players",
-		"data": posns
-	})
+	serverTick() {
+		this.gameLogic(this);
+
+		var parent = this;
+		this.clients.forEach(function(client) {
+			parent.clientLogic(client);
+			client.keyboardState.pressed = {};
+			client.keyboardState.released = {};
+
+			client.mouseState.pressed = {};
+			client.mouseState.released = {};
+		})
+	}
+
+	connect(client) {
+		this.clients.push(client);
+		this.onConnect(client);
+	}
+
+	disconnect(client) {
+		this.onDisconnect(client);
+		var index = this.clients.indexOf(client);
+		if (index != -1) this.clients.splice(index, 1);
+	}
+
+	start() {
+		var parent = this;
+		this.server.on("connection", function(socket) {
+			var client = new Elemental.Client(parent, socket);
+			parent.connect(client);
+		});
+
+		setInterval(function() {
+			parent.serverTick();
+		}, 1000/this.tickrate);
+	}
 }
 
-// Vector class
-class Vector {
+exports.Server = Elemental.Server;
+
+// Helper object filled with helper functions and classes
+Elemental.Helpers = {}
+
+Elemental.Helpers.ToRadians = function(degrees) {
+	return degrees * Math.PI / 180;
+}
+
+Elemental.Helpers.ToDegrees = function(radians) {
+	return radians * 180 / Math.PI;
+}
+
+Elemental.Helpers.AngleBetween = function(point1, point2) {
+	var rads = Math.atan2(point1.x-point2.x, point1.y-point2.y);
+	return -Elemental.Helpers.ToDegrees(rads)+90;
+}
+
+Elemental.Helpers.DistanceBetween = function(point1, point2) {
+	return Math.sqrt(Math.pow(point1.x-point2.x, 2) + Math.pow(point1.y-point2.y, 2));
+}
+
+Elemental.Helpers.StepBetween = function(point1, point2) {
+	var hype = Elemental.Helpers.DistanceBetween(point1, point2);
+	var dx = (point1.x-point2.x)/hype;
+	var dy = (point1.y-point2.y)/hype;
+	return new Elemental.Vector(dx, dy);
+}
+
+Elemental.Helpers.RandomInt = function(min, max) {
+	return Math.floor(Math.random() * (max - min) + min);
+}
+
+Elemental.Helpers.RandomColor = function() {
+	var r = Elemental.Helpers.RandomInt(0, 255);
+	var g = Elemental.Helpers.RandomInt(0, 255);
+	var b = Elemental.Helpers.RandomInt(0, 255);
+	return new Elemental.Color(r, g, b);
+}
+
+Elemental.Helpers.LoadImage = function(url) {
+	var img = new Image();
+    img.src = url;
+	return img;
+}
+
+Elemental.Helpers.Now = function() {
+	return new Date().getTime() / 1000;
+}
+
+Elemental.Helpers.Constrict = function(val, min, max) {
+	if (val < min) { return min; }
+	if (val > max) { return max; }
+	else { return val; }
+}
+
+Elemental.Helpers.PadZeros = function(number, length) {
+	var str = '' + number;
+	while (str.length < length) {
+		str = '0' + str;
+	}
+	return str;
+}
+
+Elemental.Helpers.RandomString = function() {
+	var s1 = Math.random().toString(36).substring(2, 15);
+	var s2 = Math.random().toString(36).substring(2, 15);
+	return s1 + s2
+}
+
+exports.Helpers = Elemental.Helpers;
+
+// Vector class and function definitions
+Elemental.Vector = class {
 	constructor(x, y) {
 		this.x = x;
 		this.y = y;
@@ -249,8 +311,126 @@ class Vector {
 	}
 }
 
+exports.Vector = Elemental.Vector;
+// Color class to represent color
+Elemental.Color = class {
+	constructor() {
+		this._red = 0;
+		this._green = 0;
+		this._blue = 0;
+
+		if (arguments.length == 1) {
+			var color = Elemental.Color.ParseHEX(arguments[0]);
+			this.red = color[0];
+			this.green = color[1];
+			this.blue = color[2];
+		} else {
+			this.red = arguments[0];
+			this.green = arguments[1];
+			this.blue = arguments[2];
+		}
+	}
+
+	get red() { return this._red; }
+	get green() { return this._green; }
+	get blue() { return this._blue; }
+
+	get hue() { return this.hsv[0]; }
+	get saturation() { return this.hsv[1]; }
+	get value() { return this.hsv[2]; }
+
+	get hsv() { return Elemental.Color.RGBtoHSV(this.rgb); }
+	get rgb() { return [this.red, this.green, this.blue]; }
+
+	set red(val) { this._red = Math.floor(Elemental.Helpers.Constrict(val, 0, 255)); }
+	set green(val) { this._green = Math.floor(Elemental.Helpers.Constrict(val, 0, 255)); }
+	set blue(val) { this._blue = Math.floor(Elemental.Helpers.Constrict(val, 0, 255)); }
+
+	set hue(val) { this.hsv = [Elemental.Helpers.Constrict(val, 0, 255), this.hsv[1], this.hsv[2]]; }
+	set saturation(val) { this.hsv = [this.hsv[0], Elemental.Helpers.Constrict(val, 0, 255), this.hsv[2]]; }
+	set value(val) { this.hsv = [this.hsv[0], this.hsv[1], Elemental.Helpers.Constrict(val, 0, 255)]; }
+
+	set hsv(val) { this.rgb = Elemental.Color.HSVtoRGB(val); }
+	set rgb(val) { this.red = val[0]; this.green = val[1]; this.blue = val[2]; }
+
+	formatRGB() {
+		return `rgb(${this.red}, ${this.green}, ${this.blue})`
+	}
+
+	formatHEX() {
+		var red = Elemental.Helpers.PadZeros(this.red.toString(16), 2);
+		var green = Elemental.Helpers.PadZeros(this.green.toString(16), 2);
+		var blue = Elemental.Helpers.PadZeros(this.blue.toString(16), 2);
+
+		return `#${red}${green}${blue}`;
+	}
+
+	static RGBtoHSV(color) {
+		var r = color[0];
+		var g = color[1];
+		var b = color[2];
+	    var max = Math.max(r, g, b), min = Math.min(r, g, b),
+	        d = max - min,
+	        h,
+	        s = (max === 0 ? 0 : d / max),
+	        v = max / 255;
+
+	    switch (max) {
+	        case min: h = 0; break;
+	        case r: h = (g - b) + d * (g < b ? 6: 0); h /= 6 * d; break;
+	        case g: h = (b - r) + d * 2; h /= 6 * d; break;
+	        case b: h = (r - g) + d * 4; h /= 6 * d; break;
+	    }
+
+	    return [h*255, s*255, v*255];
+	}
+
+	static HSVtoRGB(color) {
+		var h = color[0] / 255;
+		var s = color[1] / 255;
+		var v = color[2] / 255;
+	    var r, g, b, i, f, p, q, t;
+	    i = Math.floor(h * 6);
+	    f = h * 6 - i;
+	    p = v * (1 - s);
+	    q = v * (1 - f * s);
+	    t = v * (1 - (1 - f) * s);
+	    switch (i % 6) {
+	        case 0: r = v, g = t, b = p; break;
+	        case 1: r = q, g = v, b = p; break;
+	        case 2: r = p, g = v, b = t; break;
+	        case 3: r = p, g = q, b = v; break;
+	        case 4: r = t, g = p, b = v; break;
+	        case 5: r = v, g = p, b = q; break;
+	    }
+	    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+	}
+
+	static ParseRGB(string) {
+		var array = string.substring(4, string.length-1).replace(/ /g, '').split(',');
+		array = array.map(function(x) { return parseInt(x) });
+		var red = array[0];
+		var green = array[1];
+		var blue = array[2];
+		return [red, green, blue];
+	}
+
+	static ParseHEX(hex) {
+		var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+		var red = parseInt(result[1], 16);
+		var green = parseInt(result[2], 16);
+		var blue = parseInt(result[3], 16);
+		return [red, green, blue];
+	}
+
+	static IsColor(color) {
+		return color instanceof Elemental.Color;
+	}
+}
+
+exports.Color = Elemental.Color;
 // Mouse and keycode definitions
-var Keycodes = {
+Elemental.Keycodes = {
 	BACKSPACE: 8,
 	TAB: 9,
 	ENTER: 13,
@@ -352,8 +532,11 @@ var Keycodes = {
 	QUOTE: 222
 }
 
-var Mousecodes = {
+Elemental.Mousecodes = {
 	LEFT: 0,
 	MIDDLE: 1,
 	RIGHT: 2
 }
+
+exports.Keycodes = Elemental.Keycodes;
+exports.Mousecodes = Elemental.Mousecodes;
