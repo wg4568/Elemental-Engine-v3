@@ -1,135 +1,13 @@
 var Elemental = {};
 
-Elemental.Backend = {
-	mousePos: {x: 0, y: 0},
-	keyStates: {},
-	keysDown: {},
-	keysUp: {},
-	mouseState: {},
-	mouseDown: {},
-	mouseUp: {},
-	spinoffs: [],
-	frameFunctions: []
-}
-
-// GameLoopManager By Javier Arevalo
-Elemental.Backend.Timer = new function() {
-	this.lastTime = 0;
-	this.gameTick = null;
-	this.prevElapsed = 0;
-	this.prevElapsed2 = 0;
-
-	this.start = function(gameTick) {
-		var prevTick = this.gameTick;
-		this.gameTick = gameTick;
-		if (this.lastTime == 0)
-		{
-			// Once started, the loop never stops.
-			// But this function is called to change tick functions.
-			// Avoid requesting multiple frames per frame.
-			var bindThis = this;
-			requestAnimationFrame(function() { bindThis.tick(); } );
-			this.lastTime = 0;
-		}
-	}
-
-	this.stop = function() {
-		this.start (null);
-	}
-
-	this.tick = function () {
-		if (this.gameTick != null)
-		{
-			var bindThis = this;
-			requestAnimationFrame(function() { bindThis.tick(); } );
-		}
-		else
-		{
-			this.lastTime = 0;
-			return;
-		}
-		var timeNow = Date.now();
-		var elapsed = timeNow - this.lastTime;
-		if (elapsed > 0)
-		{
-			if (this.lastTime != 0)
-			{
-				if (elapsed > 1000) // Cap max elapsed time to 1 second to avoid death spiral
-				elapsed = 1000;
-				// Hackish fps smoothing
-				var smoothElapsed = (elapsed + this.prevElapsed + this.prevElapsed2)/3;
-				this.gameTick(0.001*smoothElapsed);
-				this.prevElapsed2 = this.prevElapsed;
-				this.prevElapsed = elapsed;
-			}
-			this.lastTime = timeNow;
-		}
-	}
-}
-
-Elemental.AddLogic = function(func) {
-	Elemental.Backend.frameFunctions.push(func);
-}
-
-Elemental.Start = function() {
-	Elemental.Backend.Timer.start(function(time){
-		Elemental.Backend.frameFunctions.forEach(function(func){
-			func(time);
-		});
-		Elemental.Spinoff.RunAll();
-		Elemental.Backend.ResetKeys();
-	});
-}
-
-Elemental.Stop = function() {
-	Elemental.Backend.Timer.stop();
-}
-
-Elemental.Backend.ResetKeys = function() {
-	Elemental.Backend.keysDown = {};
-	Elemental.Backend.keysUp = {};
-	Elemental.Backend.mouseDown = {};
-	Elemental.Backend.mouseUp = {};
-}
-
-document.addEventListener("keydown", function(event) {
-	if (!Elemental.Input.KeyHeld(event.keyCode)) {
-		Elemental.Backend.keysDown[event.keyCode] = 1;
-	}
-	Elemental.Backend.keyStates[event.keyCode] = 1;
-});
-
-document.addEventListener("keyup", function(event) {
-	Elemental.Backend.keyStates[event.keyCode] = 0;
-	Elemental.Backend.keysUp[event.keyCode] = 1;
-});
-
-document.addEventListener("mousedown", function(event) {
-	if (!Elemental.Input.MouseHeld(event.button)) {
-		Elemental.Backend.mouseDown[event.button] = 1;
-	}
-	Elemental.Backend.mouseState[event.button] = 1;
-});
-
-document.addEventListener("mouseup", function(event) {
-	Elemental.Backend.mouseState[event.button] = 0;
-	Elemental.Backend.mouseUp[event.button] = 1;
-});
-
+// Canvas class, handles lowest level draw operations
 Elemental.Canvas = class {
 	constructor(id, fullscreen=false) {
 		this.canvas = document.getElementById(id);
 		this.context = this.canvas.getContext("2d");
 		this.fullscreen = fullscreen;
 
-		this.mousePos = Elemental.Vector.Empty;
-
 		this.canvas.addEventListener("contextmenu", event => event.preventDefault());
-
-		var parent = this;
-		this.canvas.addEventListener("mousemove", function(event) {
-			Elemental.Backend.mousePos = new Elemental.Vector(event.offsetX, event.offsetY);
-		});
 
 		if (this.fullscreen) {
 			this.fillWindow();
@@ -155,15 +33,21 @@ Elemental.Canvas = class {
 
 	get center() { return new Elemental.Vector(this.width/2, this.height/2); }
 
+	setContextProperty(prop, value) {
+		if (Elemental.Color.IsColor(value)) { value = value.formatHEX(); }
+
+		this.context[prop] = value;
+	}
+
 	// Draw functions
 	drawFill(color) {
 		this.drawRect(color, Elemental.Vector.Empty, this.width, this.height);
 	}
 
 	drawLine(p1, p2, color="black", width=1, caps="round") {
-		this.context.strokeStyle = Elemental.Helpers.CssColor(color);
-		this.context.lineWidth = width;
-		this.context.lineCap = caps;
+		this.setContextProperty("strokeStyle", color);
+		this.setContextProperty("lineWidth", width);
+		this.setContextProperty("lineCap", caps);
 
 		this.context.beginPath();
 		this.context.moveTo(p1.x, p1.y);
@@ -172,13 +56,13 @@ Elemental.Canvas = class {
 	}
 
 	drawText(font, text, posn, color="black") {
-		this.context.fillStyle = Elemental.Helpers.CssColor(color);
-		this.context.font = font;
+		this.setContextProperty("fillStyle", color);
+		this.setContextProperty("font", font);
 		this.context.fillText(text, posn.x, posn.y);
 	}
 
 	drawRect(color, posn, w, h) {
-		this.context.fillStyle = Elemental.Helpers.CssColor(color);
+		this.setContextProperty("fillStyle", color);
 		this.context.fillRect(posn.x, posn.y, w, h);
 	}
 
@@ -191,45 +75,116 @@ Elemental.Canvas = class {
 	}
 }
 
-Elemental.Input = class {
-	static get MousePos() {
-		return Elemental.Backend.mousePos;
+// Game class, handles timing, user input, etc
+Elemental.Game = class {
+	constructor() {
+		this.keyboardState = {pressed: {}, held: {}, released: {}};
+		this.mouseState = {pressed: {}, held: {}, released: {}};
+
+		this.logic = [];
+		this.triggers = {};
 	}
 
-	static KeyHeld(keycode) {
-		var val = Elemental.Backend.keyStates[keycode];
-		if (val == 1) { return true; }
-		else { return false; }
+	addLogic(func) {
+		this.logic.push(func);
 	}
 
-	static KeyPressed(keycode) {
-		var val = Elemental.Backend.keysDown[keycode];
-		if (val == 1) { return true; }
-		else { return false; }
+	serverCallCustom(name, data={}) {
+		var is_allowed = [
+			"constructor", "addLogic", "serverCallCustom",
+			"keyPressed", "keyHeld", "keyReleased",
+			"mousePressed", "mouseHeld", "mouseReleased",
+			"keyPressedEvent", "keyReleasedEvent",
+			"mousePressedEvent", "mouseReleasedEvent",
+			"start"
+		].indexOf(name) == -1;
+		if (is_allowed) this[name](data={});
 	}
 
-	static KeyReleased(keycode) {
-		var val = Elemental.Backend.keysUp[keycode];
-		if (val == 1) { return true; }
-		else { return false; }
+	keyPressed(keycode) {
+		var value = this.keyboardState.pressed[keycode];
+		if (value == 1) return true;
+		else return false;
+	}
+	keyHeld(keycode) {
+		var value = this.keyboardState.held[keycode];
+		if (value == 1) return true;
+		else return false;
+	}
+	keyReleased(keycode) {
+		var value = this.keyboardState.released[keycode];
+		if (value == 1) return true;
+		else return false;
 	}
 
-	static MouseHeld(button) {
-		var val = Elemental.Backend.mouseState[button];
-		if (val == 1) { return true; }
-		else { return false; }
+	mousePressed(button) {
+		var value = this.mouseState.pressed[button];
+		if (value == 1) return true;
+		else return false;
+	}
+	mouseHeld(button) {
+		var value = this.mouseState.held[button];
+		if (value == 1) return true;
+		else return false;
+	}
+	mouseReleased(button) {
+		var value = this.mouseState.released[button];
+		if (value == 1) return true;
+		else return false;
 	}
 
-	static MousePressed(button) {
-		var val = Elemental.Backend.mouseDown[button];
-		if (val == 1) { return true; }
-		else { return false; }
+	keyPressedEvent(keycode) {
+		if (!this.keyHeld(keycode)) {
+			this.keyboardState.pressed[keycode] = 1;
+		}
+		this.keyboardState.held[keycode] = 1;
+	}
+	keyReleasedEvent(keycode) {
+		this.keyboardState.released[keycode] = 1;
+		this.keyboardState.held[keycode] = 0;
 	}
 
-	static MouseReleased(button) {
-		var val = Elemental.Backend.mouseUp[button];
-		if (val == 1) { return true; }
-		else { return false; }
+	mousePressedEvent(button) {
+		if (!this.mouseHeld(button)) {
+			this.mouseState.pressed[button] = 1;
+		}
+		this.mouseState.held[button] = 1;
+	}
+	mouseReleasedEvent(button) {
+		this.mouseState.released[button] = 1;
+		this.mouseState.held[button] = 0;
+	}
+
+	start() {
+		var parent = this;
+
+		document.addEventListener("keydown", function(event){
+			parent.keyPressedEvent(event.keyCode);
+		});
+		document.addEventListener("keyup", function(event){
+			parent.keyReleasedEvent(event.keyCode);
+		});
+
+		document.addEventListener("mousedown", function(event){
+			parent.mousePressedEvent(event.button);
+		});
+		document.addEventListener("mouseup", function(event){
+			parent.mouseReleasedEvent(event.button);
+		});
+
+		Elemental.Timer.Start(function(time){
+
+			parent.logic.forEach(function(func){
+				func(parent, time);
+			});
+
+			parent.keyboardState.pressed = {};
+			parent.keyboardState.released = {};
+
+			parent.mouseState.pressed = {};
+			parent.mouseState.released = {};
+
+		});
 	}
 }
 
@@ -244,7 +199,21 @@ Elemental.Sprite = class {
 	}
 
 	drawOnCanvas(canvas, posn) {
-		//pass
+		canvas.context.translate(posn.x, posn.y);
+		canvas.context.rotate(Elemental.Helpers.ToRadians(this.rotation));
+		canvas.context.translate(-this.center.x, -this.center.y);
+		canvas.setContextProperty("globalAlpha", this.alpha);
+
+		this.draw(canvas);
+
+		canvas.setContextProperty("globalAlpha", 1);
+		canvas.context.translate(this.center.x, this.center.y);
+		canvas.context.rotate(-Elemental.Helpers.ToRadians(this.rotation));
+		canvas.context.translate(-posn.x, -posn.y);
+	}
+
+	draw(canvas) {
+		// pass
 	}
 
 	inherit(data) {
@@ -277,30 +246,26 @@ Elemental.Sprite.Points = class extends Elemental.Sprite {
 		this.inherit(config);
 	}
 
-	drawOnCanvas(canvas, posn) {
-		canvas.context.strokeStyle = Elemental.Helpers.CssColor(this.lineColor);
-		canvas.context.lineWidth = this.lineWidth;
-		canvas.context.lineCap = this.lineCaps;
-		canvas.context.lineJoin = this.lineCorners;
-		canvas.context.miterLimit = this.lineMiterLimit;
+	draw(canvas) {
+		canvas.setContextProperty("strokeStyle", this.lineColor);
+		canvas.setContextProperty("lineWidth", this.lineWidth);
+		canvas.setContextProperty("lineCap", this.lineCaps);
+		canvas.setContextProperty("lineJoin", this.lineCorners);
+		canvas.setContextProperty("miterLimit", this.lineMiterLimit);
+		canvas.setContextProperty("lineDashOffset", this.lineDashOffset);
+		canvas.setContextProperty("fillStyle", this.fillColor);
 		canvas.context.setLineDash([this.lineDashWidth, this.lineDashSpacing]);
-		canvas.context.lineDashOffset = this.lineDashOffset;
-		canvas.context.fillStyle = Elemental.Helpers.CssColor(this.fillColor);
-
-		canvas.context.translate(posn.x, posn.y);
-		canvas.context.rotate(Elemental.Helpers.ToRadians(this.rotation));
-		canvas.context.globalAlpha = this.alpha;
 
 		canvas.context.beginPath();
 
 		canvas.context.moveTo(
-			(this.points[0].x-this.center.x)*this.scale,
-			(this.points[0].y-this.center.y)*this.scale
+			this.points[0].x*this.scale,
+			this.points[0].y*this.scale
 		);
 		for (var i=1; i<this.points.length; i++) {
 			canvas.context.lineTo(
-				(this.points[i].x-this.center.x)*this.scale,
-				(this.points[i].y-this.center.y)*this.scale
+				this.points[i].x*this.scale,
+				this.points[i].y*this.scale
 			);
 		}
 
@@ -315,10 +280,6 @@ Elemental.Sprite.Points = class extends Elemental.Sprite {
 			canvas.context.fill();
 			if (this.lineWidth > 0) { canvas.context.stroke(); }
 		}
-
-		canvas.context.globalAlpha = 1;0
-		canvas.context.rotate(-Elemental.Helpers.ToRadians(this.rotation));
-		canvas.context.translate(-posn.x, -posn.y);
 	}
 }
 
@@ -343,30 +304,23 @@ Elemental.Sprite.Polygon = class extends Elemental.Sprite {
 		this.inherit(config);
 	}
 
-	drawOnCanvas(canvas, posn) {
-		canvas.context.strokeStyle = Elemental.Helpers.CssColor(this.lineColor);
-		canvas.context.lineWidth = this.lineWidth;
-		canvas.context.lineCap = this.lineCaps;
-		canvas.context.lineJoin = this.lineCorners;
-		canvas.context.miterLimit = this.lineMiterLimit;
+	draw(canvas) {
+		canvas.setContextProperty("strokeStyle", this.lineColor);
+		canvas.setContextProperty("lineWidth", this.lineWidth);
+		canvas.setContextProperty("lineCap", this.lineCaps);
+		canvas.setContextProperty("lineJoin", this.lineCorners);
+		canvas.setContextProperty("miterLimit", this.lineMiterLimit);
+		canvas.setContextProperty("lineDashOffset", this.lineDashOffset);
+		canvas.setContextProperty("fillStyle", this.fillColor);
 		canvas.context.setLineDash([this.lineDashWidth, this.lineDashSpacing]);
-		canvas.context.lineDashOffset = this.lineDashOffset;
-		canvas.context.fillStyle = Elemental.Helpers.CssColor(this.fillColor);
-
-		canvas.context.translate(posn.x, posn.y);
-		canvas.context.rotate(Elemental.Helpers.ToRadians(this.rotation));
-		canvas.context.globalAlpha = this.alpha;
 
 		canvas.context.beginPath();
-		canvas.context.moveTo(
-			(this.size-this.center.x)*this.scale,
-			-this.center.y*this.scale
-		);
+		canvas.context.moveTo(this.size*this.scale, 0);
 
 		for (var angle = 360/this.sides; angle < 360; angle += 360/this.sides) {
 				canvas.context.lineTo(
-					((Math.cos(Elemental.Helpers.ToRadians(angle))*this.size)-this.center.x)*this.scale,
-					((Math.sin(Elemental.Helpers.ToRadians(angle))*this.size)-this.center.y)*this.scale
+					(Math.cos(Elemental.Helpers.ToRadians(angle))*this.size)*this.scale,
+					(Math.sin(Elemental.Helpers.ToRadians(angle))*this.size)*this.scale
 				);
 		}
 
@@ -379,10 +333,6 @@ Elemental.Sprite.Polygon = class extends Elemental.Sprite {
 			canvas.context.fill();
 			if (this.lineWidth > 0) { canvas.context.stroke(); }
 		}
-
-		canvas.context.globalAlpha = 1;
-		canvas.context.rotate(-Elemental.Helpers.ToRadians(this.rotation));
-		canvas.context.translate(-posn.x, -posn.y);
 	}
 }
 
@@ -409,26 +359,22 @@ Elemental.Sprite.Ellipse = class extends Elemental.Sprite {
 		this.inherit(config);
 	}
 
-	drawOnCanvas(canvas, posn) {
-		canvas.context.strokeStyle = Elemental.Helpers.CssColor(this.lineColor);
-		canvas.context.lineWidth = this.lineWidth;
-		canvas.context.lineCap = this.lineCaps;
-		canvas.context.lineJoin = this.lineCorners;
-		canvas.context.miterLimit = this.lineMiterLimit;
+	draw(canvas) {
+		canvas.setContextProperty("strokeStyle", this.lineColor);
+		canvas.setContextProperty("lineWidth", this.lineWidth);
+		canvas.setContextProperty("lineCap", this.lineCaps);
+		canvas.setContextProperty("lineJoin", this.lineCorners);
+		canvas.setContextProperty("miterLimit", this.lineMiterLimit);
+		canvas.setContextProperty("lineDashOffset", this.lineDashOffset);
+		canvas.setContextProperty("fillStyle", this.fillColor);
 		canvas.context.setLineDash([this.lineDashWidth, this.lineDashSpacing]);
-		canvas.context.lineDashOffset = this.lineDashOffset;
-		canvas.context.fillStyle = Elemental.Helpers.CssColor(this.fillColor);
-
-		canvas.context.translate(posn.x, posn.y);
-		canvas.context.rotate(Elemental.Helpers.ToRadians(this.rotation));
-		canvas.context.globalAlpha = this.alpha;
 
 		canvas.context.beginPath();
 
 		canvas.context.arc(
-			(this.midpoint.x-this.center.x)*this.scale,
-			(this.midpoint.y-this.center.y)*this.scale,
-			(this.radius)*this.scale,
+			this.midpoint.x*this.scale,
+			this.midpoint.y*this.scale,
+			this.radius*this.scale,
 			Elemental.Helpers.ToRadians(this.start),
 			Elemental.Helpers.ToRadians(this.end)
 		);
@@ -444,10 +390,6 @@ Elemental.Sprite.Ellipse = class extends Elemental.Sprite {
 			canvas.context.fill();
 			if (this.lineWidth > 0) { canvas.context.stroke(); }
 		}
-
-		canvas.context.globalAlpha = 1;
-		canvas.context.rotate(-Elemental.Helpers.ToRadians(this.rotation));
-		canvas.context.translate(-posn.x, -posn.y);
 	}
 }
 
@@ -464,16 +406,8 @@ Elemental.Sprite.Image = class extends Elemental.Sprite {
 	get height() { return this.image.height*this.scale; }
 	get size() { return new Elemental.Vector(this.height, this.width); }
 
-	drawOnCanvas(canvas, posn) {
-		canvas.context.translate(posn.x, posn.y);
-		canvas.context.rotate(Elemental.Helpers.ToRadians(this.rotation));
-		canvas.context.globalAlpha = this.alpha;
-
-		canvas.drawImage(this.image, Elemental.Vector.Inverse(this.center), this.scale);
-
-		canvas.context.globalAlpha = 1;
-		canvas.context.rotate(-Elemental.Helpers.ToRadians(this.rotation));
-		canvas.context.translate(-posn.x, -posn.y);
+	draw(canvas) {
+		canvas.drawImage(this.image, Elemental.Vector.Empty, this.scale);
 	}
 }
 
@@ -486,12 +420,8 @@ Elemental.Sprite.Composite = class extends Elemental.Sprite {
 		this.inherit(config);
 	}
 
-	drawOnCanvas(canvas, posn) {
+	draw(canvas) {
 		var scale = this.scale;
-		var negCent = Elemental.Vector.Inverse(this.center);
-		canvas.context.translate(posn.x, posn.y);
-		canvas.context.rotate(Elemental.Helpers.ToRadians(this.rotation));
-		canvas.context.globalAlpha = this.alpha;
 
 		this.shapes.sort(function(a, b){
 			if (a.layer > b.layer) return 1;
@@ -501,13 +431,9 @@ Elemental.Sprite.Composite = class extends Elemental.Sprite {
 
 		this.shapes.forEach(function(shape){
 			shape.scale *= scale;
-			shape.drawOnCanvas(canvas, negCent);
+			shape.drawOnCanvas(canvas, Elemental.Vector.Empty);
 			shape.scale /= scale;
 		});
-
-		canvas.context.globalAlpha = 1;
-		canvas.context.rotate(-Elemental.Helpers.ToRadians(this.rotation));
-		canvas.context.translate(-posn.x, -posn.y);
 	}
 }
 
@@ -521,135 +447,15 @@ Elemental.Sprite.Animation = class extends Elemental.Sprite {
 		this.framecount = 0;
 	}
 
-	drawOnCanvas(canvas, posn) {
+	draw(canvas) {
 		this.framecount++;
 
 		if (this.framecount >= this.speed) {
 			this.framecount = 0;
 			this.currentframe = (this.currentframe + 1) % this.frames.length;
 		}
-		canvas.context.translate(posn.x, posn.y);
-		canvas.context.rotate(Elemental.Helpers.ToRadians(this.rotation));
-		canvas.context.globalAlpha = this.alpha;
 
-		this.frames[this.currentframe].drawOnCanvas(canvas, Elemental.Vector.Inverse(this.center));
-
-		canvas.context.globalAlpha = 1;
-		canvas.context.rotate(-Elemental.Helpers.ToRadians(this.rotation));
-		canvas.context.translate(-posn.x, -posn.y);
-	}
-}
-
-Elemental.Audio = null;
-
-Elemental.Spinoff = class {
-	constructor(duration, unique=false) {
-		this.duration = duration;
-		this.unique = unique;
-		this.frame = 0;
-		this.returning = false;
-
-		this.running = false;
-
-		this.funcStart = function(){}
-		this.funcFrame = function(){}
-		this.funcEnd = function(){}
-		this.funcReturn = null;
-	}
-
-	onStart(func) { this.funcStart = func; }
-	onFrame(func) { this.funcFrame = func; }
-	onEnd(func) { this.funcEnd = func; }
-	onReturn(func) { this.funcReturn = func; }
-
-	end() {
-		this.funcEnd();
-		this.returning = false;
-		this.running = false;
-		this.frame = 0;
-		var ind = Elemental.Backend.spinoffs.indexOf(this);
-		if (ind != -1) {
-			Elemental.Backend.spinoffs.splice(ind, 1);
-		}
-	}
-
-	start() {
-		if (this.unique) {
-			if (!this.running) {
-				Elemental.Backend.spinoffs.push(this);
-			}
-		} else {
-			Elemental.Backend.spinoffs.push(this);
-		}
-		this.running = true;
-	}
-
-	doFrame() {
-		if (this.frame == 0) { this.funcStart(); }
-
-		if (this.returning) { this.funcReturn((this.duration*2)-this.frame-1); }
-		else { this.funcFrame(this.frame); }
-
-		this.frame++;
-
-		if (this.funcReturn != null) {
-			if (this.frame >= this.duration) {
-				this.returning = true;
-			}
-			if (this.frame >= this.duration * 2) {
-				this.end();
-			}
-		} else {
-			if (this.frame >= this.duration) {
-				this.end();
-			}
-		}
-	}
-
-	static RunAll() {
-		Elemental.Backend.spinoffs.forEach(function(so){
-			so.doFrame();
-		});
-	}
-}
-
-Elemental.Color = class {
-	constructor() {
-		this._red = 0;
-		this._green = 0;
-		this._blue = 0;
-
-		if (arguments.length == 1) {
-			this.parseFrom(arguments[0]);
-		} else {
-			this._red = arguments[0];
-			this._green = arguments[1];
-			this._blue = arguments[2];
-		}
-	}
-
-	get red() { return this._red; }
-	get green() { return this._green; }
-	get blue() { return this._blue; }
-
-	set red(val) { this._red = Elemental.Helpers.Constrict(val, 0, 255); }
-	set green(val) { this._green = Elemental.Helpers.Constrict(val, 0, 255); }
-	set blue(val) { this._blue = Elemental.Helpers.Constrict(val, 0, 255); }
-
-	cssColor() {
-		return `rgb(${this.red}, ${this.green}, ${this.blue})`
-	}
-
-	parseFrom(string) {
-		var array = string.substring(4, string.length-1).replace(/ /g, '').split(',');
-		array = array.map(function(x) { return parseInt(x) });
-		this._red = array[0];
-		this._green = array[1];
-		this._blue = array[2];
-	}
-
-	static IsColor(color) {
-		return color instanceof Elemental.Color;
+		this.frames[this.currentframe].drawOnCanvas(canvas, Elemental.Vector.Empty);
 	}
 }
 
@@ -707,11 +513,66 @@ Elemental.Helpers.Constrict = function(val, min, max) {
 	else { return val; }
 }
 
-Elemental.Helpers.CssColor = function(color) {
-	if (Elemental.Color.IsColor(color)) {
-		return color.cssColor();
-	} else {
-		return color;
+Elemental.Helpers.PadZeros = function(number, length) {
+	var str = '' + number;
+	while (str.length < length) {
+		str = '0' + str;
+	}
+	return str;
+}
+
+// Timer class, for keeping a constant framerate
+Elemental.Timer = new function() {
+	this.lastTime = 0;
+	this.gameTick = null;
+	this.prevElapsed = 0;
+	this.prevElapsed2 = 0;
+
+	this.Start = function(gameTick) {
+		var prevTick = this.gameTick;
+		this.gameTick = gameTick;
+		if (this.lastTime == 0)
+		{
+			// Once started, the loop never stops.
+			// But this function is called to change tick functions.
+			// Avoid requesting multiple frames per frame.
+			var bindThis = this;
+			requestAnimationFrame(function() { bindThis.tick(); } );
+			this.lastTime = 0;
+		}
+	}
+
+	this.Stop = function() {
+		this.Start(null);
+	}
+
+	this.tick = function () {
+		if (this.gameTick != null)
+		{
+			var bindThis = this;
+			requestAnimationFrame(function() { bindThis.tick(); } );
+		}
+		else
+		{
+			this.lastTime = 0;
+			return;
+		}
+		var timeNow = Date.now();
+		var elapsed = timeNow - this.lastTime;
+		if (elapsed > 0)
+		{
+			if (this.lastTime != 0)
+			{
+				if (elapsed > 1000) // Cap max elapsed time to 1 second to avoid death spiral
+				elapsed = 1000;
+				// Hackish fps smoothing
+				var smoothElapsed = (elapsed + this.prevElapsed + this.prevElapsed2)/3;
+				this.gameTick(0.001*smoothElapsed);
+				this.prevElapsed2 = this.prevElapsed;
+				this.prevElapsed = elapsed;
+			}
+			this.lastTime = timeNow;
+		}
 	}
 }
 
@@ -788,6 +649,188 @@ Elemental.Vector = class {
 			}
 		}
 		return total;
+	}
+}
+
+// Color class to represent color
+Elemental.Color = class {
+	constructor() {
+		this._red = 0;
+		this._green = 0;
+		this._blue = 0;
+
+		if (arguments.length == 1) {
+			var color = Elemental.Color.ParseHEX(arguments[0]);
+			this.red = color[0];
+			this.green = color[1];
+			this.blue = color[2];
+		} else {
+			this.red = arguments[0];
+			this.green = arguments[1];
+			this.blue = arguments[2];
+		}
+	}
+
+	get red() { return this._red; }
+	get green() { return this._green; }
+	get blue() { return this._blue; }
+
+	get hue() { return this.hsv[0]; }
+	get saturation() { return this.hsv[1]; }
+	get value() { return this.hsv[2]; }
+
+	get hsv() { return Elemental.Color.RGBtoHSV(this.rgb); }
+	get rgb() { return [this.red, this.green, this.blue]; }
+
+	set red(val) { this._red = Math.floor(Elemental.Helpers.Constrict(val, 0, 255)); }
+	set green(val) { this._green = Math.floor(Elemental.Helpers.Constrict(val, 0, 255)); }
+	set blue(val) { this._blue = Math.floor(Elemental.Helpers.Constrict(val, 0, 255)); }
+
+	set hue(val) { this.hsv = [Elemental.Helpers.Constrict(val, 0, 255), this.hsv[1], this.hsv[2]]; }
+	set saturation(val) { this.hsv = [this.hsv[0], Elemental.Helpers.Constrict(val, 0, 255), this.hsv[2]]; }
+	set value(val) { this.hsv = [this.hsv[0], this.hsv[1], Elemental.Helpers.Constrict(val, 0, 255)]; }
+
+	set hsv(val) { this.rgb = Elemental.Color.HSVtoRGB(val); }
+	set rgb(val) { this.red = val[0]; this.green = val[1]; this.blue = val[2]; }
+
+	formatRGB() {
+		return `rgb(${this.red}, ${this.green}, ${this.blue})`
+	}
+
+	formatHEX() {
+		var red = Elemental.Helpers.PadZeros(this.red.toString(16), 2);
+		var green = Elemental.Helpers.PadZeros(this.green.toString(16), 2);
+		var blue = Elemental.Helpers.PadZeros(this.blue.toString(16), 2);
+
+		return `#${red}${green}${blue}`;
+	}
+
+	static RGBtoHSV(color) {
+		var r = color[0];
+		var g = color[1];
+		var b = color[2];
+	    var max = Math.max(r, g, b), min = Math.min(r, g, b),
+	        d = max - min,
+	        h,
+	        s = (max === 0 ? 0 : d / max),
+	        v = max / 255;
+
+	    switch (max) {
+	        case min: h = 0; break;
+	        case r: h = (g - b) + d * (g < b ? 6: 0); h /= 6 * d; break;
+	        case g: h = (b - r) + d * 2; h /= 6 * d; break;
+	        case b: h = (r - g) + d * 4; h /= 6 * d; break;
+	    }
+
+	    return [h*255, s*255, v*255];
+	}
+
+	static HSVtoRGB(color) {
+		var h = color[0] / 255;
+		var s = color[1] / 255;
+		var v = color[2] / 255;
+	    var r, g, b, i, f, p, q, t;
+	    i = Math.floor(h * 6);
+	    f = h * 6 - i;
+	    p = v * (1 - s);
+	    q = v * (1 - f * s);
+	    t = v * (1 - (1 - f) * s);
+	    switch (i % 6) {
+	        case 0: r = v, g = t, b = p; break;
+	        case 1: r = q, g = v, b = p; break;
+	        case 2: r = p, g = v, b = t; break;
+	        case 3: r = p, g = q, b = v; break;
+	        case 4: r = t, g = p, b = v; break;
+	        case 5: r = v, g = p, b = q; break;
+	    }
+	    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+	}
+
+	static ParseRGB(string) {
+		var array = string.substring(4, string.length-1).replace(/ /g, '').split(',');
+		array = array.map(function(x) { return parseInt(x) });
+		var red = array[0];
+		var green = array[1];
+		var blue = array[2];
+		return [red, green, blue];
+	}
+
+	static ParseHEX(hex) {
+		var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+		var red = parseInt(result[1], 16);
+		var green = parseInt(result[2], 16);
+		var blue = parseInt(result[3], 16);
+		return [red, green, blue];
+	}
+
+	static IsColor(color) {
+		return color instanceof Elemental.Color;
+	}
+}
+
+// Spinoff class to represent subprocesses
+Elemental.Spinoff = class {
+	constructor(duration, unique=false) {
+		this.duration = duration;
+		this.unique = unique;
+		this.frame = 0;
+		this.returning = false;
+
+		this.running = false;
+
+		this.funcStart = function(){}
+		this.funcFrame = function(){}
+		this.funcEnd = function(){}
+		this.funcReturn = null;
+	}
+
+	onStart(func) { this.funcStart = func; }
+	onFrame(func) { this.funcFrame = func; }
+	onEnd(func) { this.funcEnd = func; }
+	onReturn(func) { this.funcReturn = func; }
+
+	end() {
+		this.funcEnd();
+		this.returning = false;
+		this.running = false;
+		this.frame = 0;
+		var ind = Elemental.Backend.spinoffs.indexOf(this);
+		if (ind != -1) {
+			Elemental.Backend.spinoffs.splice(ind, 1);
+		}
+	}
+
+	start() {
+		if (this.unique) {
+			if (!this.running) {
+				Elemental.Backend.spinoffs.push(this);
+			}
+		} else {
+			Elemental.Backend.spinoffs.push(this);
+		}
+		this.running = true;
+	}
+
+	doFrame() {
+		if (this.frame == 0) { this.funcStart(); }
+
+		if (this.returning) { this.funcReturn((this.duration*2)-this.frame-1); }
+		else { this.funcFrame(this.frame); }
+
+		this.frame++;
+
+		if (this.funcReturn != null) {
+			if (this.frame >= this.duration) {
+				this.returning = true;
+			}
+			if (this.frame >= this.duration * 2) {
+				this.end();
+			}
+		} else {
+			if (this.frame >= this.duration) {
+				this.end();
+			}
+		}
 	}
 }
 
