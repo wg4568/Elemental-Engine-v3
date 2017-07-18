@@ -12,17 +12,16 @@ var background = new Elemental.Color(255, 0, 0);
 
 var mouse_indicator = new Elemental.Sprite.Ellipse(10, config={lineWidth: 0, fillColor: "#0b9088"});
 
-var players = {};
+var players = [];
 
-game.set_players = function(data) {
+game.set_positions = function(data) {
 	players = data;
 }
 
 game.addLogic(function(){
 	canvas.drawFill(background);
 
-	Object.keys(players).forEach(function(key) {
-		posn = players[key];
+	players.forEach(function(posn) {
 		canvas.drawSprite(mouse_indicator, posn);
 	});
 });
