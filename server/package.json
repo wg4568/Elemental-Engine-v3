@@ -1,0 +1,8 @@
+{
+  "name": "elemental-server",
+  "version": "3.0",
+  "description": "Server for Elemental Engine v3.0",
+  "dependencies": {
+    "express": "^4.15.2"
+  }
+}
