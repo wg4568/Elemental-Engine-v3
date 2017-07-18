@@ -11,11 +11,6 @@ Elemental.Canvas = class {
 
 		this.canvas.addEventListener("contextmenu", event => event.preventDefault());
 
-		var parent = this;
-		this.canvas.addEventListener("mousemove", function(event) {
-			parent.mousepos = new Elemental.Vector(event.offsetX, event.offsetY);
-		});
-
 		if (this.fullscreen) {
 			this.fillWindow();
 			document.body.style.margin = 0;
@@ -83,19 +78,26 @@ Elemental.Canvas = class {
 
 // Game class, handles timing, user input, etc
 Elemental.Game = class {
-	constructor() {
+	constructor(canvas, network=null) {
+		this.canvas = canvas
+		this.network = network;
+
 		this.keyboardState = {pressed: {}, held: {}, released: {}};
 		this.mouseState = {pressed: {}, held: {}, released: {}};
 
 		this.logic = [];
 		this.spinoffs = [];
+
+		this.mousepos = Elemental.Vector.Empty;
+
+		if (this.network) this.network.game = this;
 	}
 
 	addLogic(func) {
 		this.logic.push(func);
 	}
 
-	serverCallCustom(name, data={}) {
+	serverCallCustom(name, data) {
 		var is_allowed = [
 			"constructor", "addLogic", "serverCallCustom",
 			"keyPressed", "keyHeld", "keyReleased",
@@ -104,7 +106,7 @@ Elemental.Game = class {
 			"mousePressedEvent", "mouseReleasedEvent",
 			"start"
 		].indexOf(name) == -1;
-		if (is_allowed) this[name](data={});
+		if (is_allowed) this[name](data);
 	}
 
 	keyPressed(keycode) {
@@ -144,10 +146,14 @@ Elemental.Game = class {
 			this.keyboardState.pressed[keycode] = 1;
 		}
 		this.keyboardState.held[keycode] = 1;
+
+		if (this.network) this.network.keyPressedEvent(keycode);
 	}
 	keyReleasedEvent(keycode) {
 		this.keyboardState.released[keycode] = 1;
 		this.keyboardState.held[keycode] = 0;
+
+		if (this.network) this.network.keyReleasedEvent(keycode);
 	}
 
 	mousePressedEvent(button) {
@@ -155,10 +161,20 @@ Elemental.Game = class {
 			this.mouseState.pressed[button] = 1;
 		}
 		this.mouseState.held[button] = 1;
+
+		if (this.network) this.network.mousePressedEvent(button);
 	}
 	mouseReleasedEvent(button) {
 		this.mouseState.released[button] = 1;
 		this.mouseState.held[button] = 0;
+
+		if (this.network) this.network.mouseReleasedEvent(button);
+	}
+
+	mouseMoveEvent(event) {
+		this.mousepos = new Elemental.Vector(event.offsetX, event.offsetY);
+
+		if (this.network) this.network.mouseMoveEvent(this.mousepos);
 	}
 
 	runSpinoff(so) {
@@ -168,6 +184,10 @@ Elemental.Game = class {
 
 	start() {
 		var parent = this;
+
+		this.canvas.canvas.addEventListener("mousemove", function(event) {
+			parent.mouseMoveEvent(event);
+		});
 
 		document.addEventListener("keydown", function(event){
 			parent.keyPressedEvent(event.keyCode);
@@ -199,6 +219,74 @@ Elemental.Game = class {
 			parent.mouseState.pressed = {};
 			parent.mouseState.released = {};
 
+		});
+	}
+}
+
+// Network class, connects to a websocket server, and forwards inputs
+Elemental.Network = class {
+	constructor(address) {
+		this.address = address;
+		this.socket = new WebSocket(address);
+
+		this.game = null;
+
+		var parent = this;
+		this.socket.onclose = function() {
+			parent.onClose();
+		}
+		this.socket.onmessage = function(event) {
+			parent.onMessage(event);
+		}
+	}
+
+	onClose() {}
+
+	onMessage(msgEvent) {
+		var message = JSON.parse(msgEvent.data);
+		if (message["kind"] == "trigger") {
+			var trig = message["trigger"];
+			this.game.serverCallCustom(trig, message["data"]);
+		}
+	}
+
+	sendJson(data) {
+		if (this.socket.readyState == 1) {
+			this.socket.send(JSON.stringify(data));
+		}
+	}
+
+	keyPressedEvent(keycode) {
+		this.sendJson({
+			"event": "keyPressed",
+			"key": keycode
+		});
+	}
+	keyReleasedEvent(keycode) {
+		this.sendJson({
+			"event": "keyReleased",
+			"key": keycode
+		});
+	}
+	mousePressedEvent(button) {
+		this.sendJson({
+			"event": "mousePressed",
+			"button": button
+		});
+	}
+	mouseReleasedEvent(button) {
+		this.sendJson({
+			"event": "mouseReleased",
+			"button": button
+		});
+	}
+	mouseMoveEvent(posn) {
+		this.sendJson({
+			"event": "mouseMoved",
+			"position": {
+				"x": posn.x,
+				"y": posn.y
+			}
 		});
 	}
 }
