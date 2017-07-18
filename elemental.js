@@ -244,7 +244,7 @@ Elemental.Network = class {
 
 	onMessage(msgEvent) {
 		var message = JSON.parse(msgEvent.data);
-		if (message["kind"] == "trigger") {
+		if (message["event"] == "trigger") {
 			var trig = message["trigger"];
 			this.game.serverCallCustom(trig, message["data"]);
 		}
@@ -593,11 +593,11 @@ Elemental.Helpers.RandomInt = function(min, max) {
 	return Math.floor(Math.random() * (max - min) + min);
 }
 
-Elemental.Helpers.RandomColor = function(r={min: 0, max: 255}, g={min: 0, max: 255}, b={min: 0, max: 255}) {
-	var r = Elemental.Helpers.RandomInt(r.min, r.max);
-	var g = Elemental.Helpers.RandomInt(g.min, g.max);
-	var b = Elemental.Helpers.RandomInt(b.min, b.max);
-	return `rgb(${r}, ${g}, ${b})`;
+Elemental.Helpers.RandomColor = function() {
+	var r = Elemental.Helpers.RandomInt(0, 255);
+	var g = Elemental.Helpers.RandomInt(0, 255);
+	var b = Elemental.Helpers.RandomInt(0, 255);
+	return new Elemental.Color(r, g, b);
 }
 
 Elemental.Helpers.LoadImage = function(url) {
@@ -622,6 +622,12 @@ Elemental.Helpers.PadZeros = function(number, length) {
 		str = '0' + str;
 	}
 	return str;
+}
+
+Elemental.Helpers.RandomString = function() {
+	var s1 = Math.random().toString(36).substring(2, 15);
+	var s2 = Math.random().toString(36).substring(2, 15);
+	return s1 + s2
 }
 
 // Timer class, for keeping a constant framerate
