@@ -7,13 +7,14 @@ Elemental.Canvas = class {
 		this.context = this.canvas.getContext("2d");
 		this.fullscreen = fullscreen;
 
-		this.mousepos = Elemental.Vector.Empty;
+		this.mousePos = Elemental.Vector.Empty;
 
 		this.canvas.addEventListener("contextmenu", event => event.preventDefault());
 
 		if (this.fullscreen) {
 			this.fillWindow();
 			document.body.style.margin = 0;
+			var parent = this;
 			window.addEventListener("resize", function(event){
 				parent.fillWindow();
 			});
@@ -85,16 +86,11 @@ Elemental.Game = class {
 		this.keyboardState = {pressed: {}, held: {}, released: {}};
 		this.mouseState = {pressed: {}, held: {}, released: {}};
 
-		this.logic = [];
 		this.spinoffs = [];
 
-		this.mousepos = Elemental.Vector.Empty;
+		this.mousePos = Elemental.Vector.Empty;
 
 		if (this.network) this.network.game = this;
-	}
-
-	addLogic(func) {
-		this.logic.push(func);
 	}
 
 	serverCallCustom(name, data) {
@@ -172,9 +168,9 @@ Elemental.Game = class {
 	}
 
 	mouseMoveEvent(event) {
-		this.mousepos = new Elemental.Vector(event.offsetX, event.offsetY);
+		this.mousePos = new Elemental.Vector(event.offsetX, event.offsetY);
 
-		if (this.network) this.network.mouseMoveEvent(this.mousepos);
+		if (this.network) this.network.mouseMoveEvent(this.mousePos);
 	}
 
 	runSpinoff(so) {
@@ -182,7 +178,7 @@ Elemental.Game = class {
 		so.start();
 	}
 
-	start() {
+	start(func) {
 		var parent = this;
 
 		this.canvas.canvas.addEventListener("mousemove", function(event) {
@@ -205,9 +201,7 @@ Elemental.Game = class {
 
 		Elemental.Timer.Start(function(time){
 
-			parent.logic.forEach(function(func){
-				func(parent, time);
-			});
+			func(parent, time);
 
 			parent.spinoffs.forEach(function(so){
 				so.doFrame();
@@ -525,18 +519,26 @@ Elemental.Sprite.Composite = class extends Elemental.Sprite {
 
 	draw(canvas) {
 		var scale = this.scale;
+		var shapes = [];
 
-		this.shapes.sort(function(a, b){
+		for (var index in this.shapes) {
+		   if (this.shapes.hasOwnProperty(index)) {
+			   var shape = this.shapes[index];
+			   shapes.push(shape);
+		   }
+		}
+
+		shapes.sort(function(a, b){
 			if (a.layer > b.layer) return 1;
 			if (a.layer < b.layer) return -1;
 			return 0;
 		});
 
-		this.shapes.forEach(function(shape){
-			shape.scale *= scale;
-			shape.drawOnCanvas(canvas, Elemental.Vector.Empty);
-			shape.scale /= scale;
-		});
+		shapes.forEach(function(shape) {
+		   shape.scale *= scale;
+		   shape.drawOnCanvas(canvas, Elemental.Vector.Empty);
+		   shape.scale /= scale;
+	   });
 	}
 }
 
