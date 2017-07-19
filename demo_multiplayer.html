@@ -95,14 +95,15 @@ game.start(function() {
 	if (game.keyHeld(Elemental.Keycodes.D)) movement.x += moveSpeed;
 
 	// Use server-side position to correct client side position (for smoother movement)
-	var maxCorrection = 0.5;
-	if (reqPos.x > tankPos.x) movement.x += maxCorrection;
-	if (reqPos.x < tankPos.x) movement.x -= maxCorrection;
-	if (reqPos.y > tankPos.y) movement.x += maxCorrection;
-	if (reqPos.y > tankPos.y) movement.x -= maxCorrection;
+	var maxCorrection = 1;
+	var correction = Elemental.Vector.Empty;
+	if (reqPos.x > tankPos.x) correction.x += maxCorrection;
+	if (reqPos.x < tankPos.x) correction.x -= maxCorrection;
+	if (reqPos.y > tankPos.y) correction.y += maxCorrection;
+	if (reqPos.y < tankPos.y) correction.y -= maxCorrection;
 
 	// Update client-side position
-	tankPos = Elemental.Vector.Add(tankPos, movement);
+	tankPos = Elemental.Vector.Add(tankPos, movement, correction);
 
 	// Set barrel angle
 	mouseAngle = Elemental.Helpers.AngleBetween(game.mousePos, tankPos);
