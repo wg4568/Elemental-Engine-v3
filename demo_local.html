@@ -52,14 +52,14 @@ ownColor = null;
 moveSpeed = null;
 
 // Called on connect, server sends data to configure some variables
-game.configure = function(data) {
+network.event("configure", function(data) {
 	ownID = data.id;
 	ownColor = data.color;
 	moveSpeed = data.movespeed;
-}
+});
 
 // Called every server tick, updates players
-game.update = function(data) {
+network.event("update", function(data) {
 	players = data;
 
 	// Find yourself in the list, and update known server position
@@ -68,7 +68,7 @@ game.update = function(data) {
 			reqPos = player.position;
 		}
 	});
-}
+});
 
 // Start running this function 60 times a second
 game.start(function() {
