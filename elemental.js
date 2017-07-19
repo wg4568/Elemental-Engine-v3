@@ -89,8 +89,6 @@ Elemental.Game = class {
 		this.spinoffs = [];
 
 		this.mousePos = Elemental.Vector.Empty;
-
-		if (this.network) this.network.game = this;
 	}
 
 	serverCallCustom(name, data) {
@@ -223,7 +221,7 @@ Elemental.Network = class {
 		this.address = address;
 		this.socket = new WebSocket(address);
 
-		this.game = null;
+		this.events = {};
 
 		var parent = this;
 		this.socket.onclose = function() {
@@ -240,8 +238,12 @@ Elemental.Network = class {
 		var message = JSON.parse(msgEvent.data);
 		if (message["event"] == "trigger") {
 			var trig = message["trigger"];
-			this.game.serverCallCustom(trig, message["data"]);
+			this.events[trig](message["data"]);
 		}
+	}
+
+	event(name, func) {
+		this.events[name] = func;
 	}
 
 	sendJson(data) {
