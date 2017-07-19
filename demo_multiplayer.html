@@ -6,7 +6,7 @@
 
 // Set up game elements, including a network handler
 var canvas = new Elemental.Canvas("canvas", fullscreen=true);
-var network = new Elemental.Network("ws://75.49.248.98:5001/");
+var network = new Elemental.Network("ws://192.168.1.112:5001/");
 var game = new Elemental.Game(canvas, network=network);
 
 // Variable for background color
@@ -101,6 +101,10 @@ game.start(function() {
 	if (reqPos.x < tankPos.x) correction.x -= maxCorrection;
 	if (reqPos.y > tankPos.y) correction.y += maxCorrection;
 	if (reqPos.y < tankPos.y) correction.y -= maxCorrection;
+
+	if (game.keyPressed(Elemental.Keycodes.SPACE)) {
+		network.call("chat", {"hello": 1234});
+	}
 
 	// Update client-side position
 	tankPos = Elemental.Vector.Add(tankPos, movement, correction);
