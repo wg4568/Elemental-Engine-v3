@@ -31,7 +31,7 @@ Elemental.Client = class {
 		}
 	}
 
-	callTrigger(name, data) {
+	call(name, data) {
 		this.sendJson({
 			"event": "trigger",
 			"trigger": name,
@@ -137,9 +137,9 @@ Elemental.Server = class {
 		}
 	}
 
-	broadcastTrigger(name, data) {
+	broadcast(name, data) {
 		this.clients.forEach(function(client) {
-			client.callTrigger(name, data);
+			client.call(name, data);
 		});
 	}
 

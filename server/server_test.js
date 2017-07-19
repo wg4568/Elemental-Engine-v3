@@ -14,7 +14,7 @@ server.onConnect = function(client) {
 	client.tankpos = Elemental.Vector.Empty;
 
 	// Send some basic information to the client
-	client.callTrigger("configure", {id: client.id, color: client.color.formatHEX(), movespeed: movespeed});
+	client.call("configure", {id: client.id, color: client.color.formatHEX(), movespeed: movespeed});
 
 	// Print a console alert
 	console.log("CONNECT", client.string());
@@ -42,7 +42,7 @@ server.gameLogic = function() {
 		});
 	});
 	// Send array to every connected client, through 'update' function
-	server.broadcastTrigger("update", players);
+	server.broadcast("update", players);
 }
 
 // Called every frame, for each client connected
