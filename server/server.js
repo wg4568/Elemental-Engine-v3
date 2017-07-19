@@ -26,7 +26,9 @@ Elemental.Client = class {
 	}
 
 	sendJson(obj) {
-		this.socket.send(JSON.stringify(obj));
+		if (this.socket.readyState == 1) {
+			this.socket.send(JSON.stringify(obj));
+		}
 	}
 
 	callTrigger(name, data) {
