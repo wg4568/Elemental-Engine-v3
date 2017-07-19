@@ -2,7 +2,7 @@
 const Elemental = require("./server.js");
 
 // Set up server on port 80, at 60 ticks/second
-var server = new Elemental.Server(8080, tickrate=60);
+var server = new Elemental.Server(5001, tickrate=60);
 
 // Define target movespeed
 var movespeed = 5;
