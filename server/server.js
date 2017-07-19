@@ -79,6 +79,11 @@ Elemental.Client = class {
 		// todo, add error handling so the server doesn't just crash when someone sends bad data
 		var message = JSON.parse(raw);
 
+		if (message.event == "trigger") {
+			var trig = message.trigger;
+			this.server.callTrigger(trig, message.data);
+		}
+
 		if (message.event == "keyPressed") {
 			if (!this.keyHeld(message.key)) {
 				this.keyboardState.pressed[message.key] = 1;
@@ -112,6 +117,7 @@ Elemental.Server = class {
 		this.tickrate = tickrate;
 		this.server = new WebSocket.Server({port: port});
 
+		this.events = {};
 		this.clients = [];
 	}
 
@@ -120,6 +126,16 @@ Elemental.Server = class {
 	gameLogic(server) {}
 	clientLogic(server) {}
 	onDisconnect(client) {}
+
+	event(name, func) {
+		this.events[name] = func;
+	}
+
+	callTrigger(trig, data) {
+		if (trig in this.events) {
+			this.events[trig](data);
+		}
+	}
 
 	broadcastTrigger(name, data) {
 		this.clients.forEach(function(client) {

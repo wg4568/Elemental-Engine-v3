@@ -246,6 +246,14 @@ Elemental.Network = class {
 		this.events[name] = func;
 	}
 
+	call(name, data) {
+		this.sendJson({
+			"event": "trigger",
+			"trigger": name,
+			"data": data
+		});
+	}
+
 	sendJson(data) {
 		if (this.socket.readyState == 1) {
 			this.socket.send(JSON.stringify(data));
