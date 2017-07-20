@@ -77,10 +77,61 @@ Elemental.Canvas = class {
 	}
 }
 
+// Viewport class, handles camera movement
+Elemental.Viewport = class {
+	constructor(canvas) {
+		this.canvas = canvas;
+		this.posn = Elemental.Vector.Empty;
+	}
+
+	worldToCanvas(point) {
+		var newPoint = Elemental.Vector.Subtract(point, this.posn);
+		newPoint = Elemental.Vector.Add(newPoint, this.canvas.center);
+		return newPoint;
+	}
+
+	canvasToWorld(point) {
+		var newPoint = Elemental.Vector.Add(point, this.posn);
+		newPoint = Elemental.Vector.Subtract(newPoint, this.canvas.center);
+		return newPoint;
+	}
+
+	// Draw functions
+	drawFill(color) {
+		this.canvas.drawFill(color);
+	}
+
+	drawLine(p1, p2, color="black", width=1, caps="round") {
+		this.canvas.drawLine(
+			this.worldToCanvas(p1),
+			this.worldToCanvas(p2),
+			color=color,
+			width=width,
+			caps=caps
+		);
+	}
+
+	drawText(font, text, posn, color="black") {
+		this.canvas.drawText(font, text, this.worldToCanvas(posn), color=color);
+	}
+
+	drawRect(color, posn, w, h) {
+		this.canvas.drawRect(color, this.worldToCanvas(posn), w, h);
+	}
+
+	drawImage(image, posn, scale=1) {
+		this.canvas.drawImage(image, this.worldToCanvas(posn), scale=scale);
+	}
+
+	drawSprite(sprite, posn) {
+		this.canvas.drawSprite(sprite, this.worldToCanvas(posn));
+	}
+}
+
 // Game class, handles timing, user input, etc
 Elemental.Game = class {
-	constructor(canvas, network=null) {
-		this.canvas = canvas
+	constructor(viewport, network=null) {
+		this.viewport = viewport
 		this.network = network;
 
 		this.keyboardState = {pressed: {}, held: {}, released: {}};
@@ -89,18 +140,6 @@ Elemental.Game = class {
 		this.spinoffs = [];
 
 		this.mousePos = Elemental.Vector.Empty;
-	}
-
-	serverCallCustom(name, data) {
-		var is_allowed = [
-			"constructor", "addLogic", "serverCallCustom",
-			"keyPressed", "keyHeld", "keyReleased",
-			"mousePressed", "mouseHeld", "mouseReleased",
-			"keyPressedEvent", "keyReleasedEvent",
-			"mousePressedEvent", "mouseReleasedEvent",
-			"start"
-		].indexOf(name) == -1;
-		if (is_allowed) this[name](data);
 	}
 
 	keyPressed(keycode) {
@@ -166,7 +205,8 @@ Elemental.Game = class {
 	}
 
 	mouseMoveEvent(event) {
-		this.mousePos = new Elemental.Vector(event.offsetX, event.offsetY);
+		var mousePosRaw = new Elemental.Vector(event.offsetX, event.offsetY);
+		this.mousePos = this.viewport.canvasToWorld(mousePosRaw);
 
 		if (this.network) this.network.mouseMoveEvent(this.mousePos);
 	}
@@ -179,7 +219,7 @@ Elemental.Game = class {
 	start(func) {
 		var parent = this;
 
-		this.canvas.canvas.addEventListener("mousemove", function(event) {
+		this.viewport.canvas.canvas.addEventListener("mousemove", function(event) {
 			parent.mouseMoveEvent(event);
 		});
 
@@ -212,6 +252,10 @@ Elemental.Game = class {
 			parent.mouseState.released = {};
 
 		});
+	}
+
+	stop() {
+		Elemental.Timer.Stop();
 	}
 }
 
@@ -292,6 +336,44 @@ Elemental.Network = class {
 				"y": posn.y
 			}
 		});
+	}
+}
+
+// Rigidbody class, for basic movement
+Elemental.Rigidbody = class {
+	constructor() {
+		this.posn = 0;
+		this.velocity = Elemental.Vector.Empty;
+
+		this.rotation = 0;
+		this.angular = 0;
+
+		this.maxSpeed = null;
+
+		this.friction = 1;
+	}
+
+	addForce(force) {
+		this.velocity = Elemental.Vector.Add(this.velocity, force);
+	}
+
+	addRotation(speed) {
+		this.rotation += speed;
+	}
+
+	logic() {
+		this.velocity = Elemental.Vector.Multiply(this.velocity, this.friction);
+		this.angular = this.rotation * this.friction;
+
+		if (this.maxSpeed) {
+			if (this.velocity.x > this.maxSpeed) this.velocity.x = this.maxSpeed;
+			if (this.velocity.x < -this.maxSpeed) this.velocity.x = -this.maxSpeed;
+			if (this.velocity.y > this.maxSpeed) this.velocity.y = this.maxSpeed;
+			if (this.velocity.y < -this.maxSpeed) this.velocity.y = -this.maxSpeed;
+		}
+
+		this.posn = Elemental.Vector.Add(this.posn, this.velocity);
+		this.rotation = this.rotation + this.angular;
 	}
 }
 
