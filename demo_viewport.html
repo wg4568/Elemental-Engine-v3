@@ -1,0 +1,38 @@
+<title>Viewport Demo</title>
+
+<script src="elemental.js"></script>
+
+<canvas id="canvas" width="500" height="500"></canvas>
+
+<script>
+
+var canvas = new Elemental.Canvas("canvas");
+var viewport = new Elemental.Viewport(canvas);
+var game = new Elemental.Game(viewport);
+
+var move_speed = 0.5;
+var player_posn = new Elemental.Rigidbody();
+player_posn.friction = 0.95;
+player_posn.maxSpeed = 5;
+
+var player_sprite = new Elemental.Sprite.Polygon(7, 50, config={
+	lineWidth: 10,
+	fillColor: "#804dff"
+});
+
+game.start(function() {
+	var movement = Elemental.Vector.Empty;
+	if (game.keyHeld(Elemental.Keycodes.W)) movement.y -= move_speed;
+	if (game.keyHeld(Elemental.Keycodes.S)) movement.y += move_speed;
+	if (game.keyHeld(Elemental.Keycodes.A)) movement.x -= move_speed;
+	if (game.keyHeld(Elemental.Keycodes.D)) movement.x += move_speed;
+
+	player_posn.addForce(movement);
+
+	viewport.drawFill("#75ffc1");
+	viewport.drawSprite(player_sprite, player_posn.posn);
+
+	player_posn.logic();
+});
+
+</script>
