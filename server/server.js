@@ -183,6 +183,46 @@ Elemental.Server = class {
 
 exports.Server = Elemental.Server;
 
+// Rigidbody class, for basic movement
+Elemental.Rigidbody = class {
+	constructor() {
+		this.posn = 0;
+		this.velocity = Elemental.Vector.Empty;
+
+		this.rotation = 0;
+		this.angular = 0;
+
+		this.maxSpeed = null;
+
+		this.friction = 1;
+	}
+
+	addForce(force) {
+		this.velocity = Elemental.Vector.Add(this.velocity, force);
+	}
+
+	addRotation(speed) {
+		this.rotation += speed;
+	}
+
+	logic() {
+		this.velocity = Elemental.Vector.Multiply(this.velocity, this.friction);
+		this.angular = this.rotation * this.friction;
+
+		if (this.maxSpeed) {
+			if (this.velocity.x > this.maxSpeed) this.velocity.x = this.maxSpeed;
+			if (this.velocity.x < -this.maxSpeed) this.velocity.x = -this.maxSpeed;
+			if (this.velocity.y > this.maxSpeed) this.velocity.y = this.maxSpeed;
+			if (this.velocity.y < -this.maxSpeed) this.velocity.y = -this.maxSpeed;
+		}
+
+		this.posn = Elemental.Vector.Add(this.posn, this.velocity);
+		this.rotation = this.rotation + this.angular;
+	}
+}
+
+exports.Rigidbody = Elemental.Rigidbody;
+
 // Helper object filled with helper functions and classes
 Elemental.Helpers = {}
 
@@ -330,6 +370,7 @@ Elemental.Vector = class {
 }
 
 exports.Vector = Elemental.Vector;
+
 // Color class to represent color
 Elemental.Color = class {
 	constructor() {
@@ -447,6 +488,7 @@ Elemental.Color = class {
 }
 
 exports.Color = Elemental.Color;
+
 // Mouse and keycode definitions
 Elemental.Keycodes = {
 	BACKSPACE: 8,
