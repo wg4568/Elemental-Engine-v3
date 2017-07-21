@@ -47,9 +47,6 @@ Elemental.Canvas = class {
 	}
 
 	drawLine(p1, p2, color="black", width=1, caps="round") {
-		if (Elemental.IsRigidbody(p1)) p1 = p1.posn;
-		if (Elemental.IsRigidbody(p2)) p2 = p2.posn;
-
 		this.setContextProperty("strokeStyle", color);
 		this.setContextProperty("lineWidth", width);
 		this.setContextProperty("lineCap", caps);
@@ -61,32 +58,21 @@ Elemental.Canvas = class {
 	}
 
 	drawText(font, text, posn, color="black") {
-		if (Elemental.IsRigidbody(posn)) posn = posn.posn;
-
 		this.setContextProperty("fillStyle", color);
 		this.setContextProperty("font", font);
 		this.context.fillText(text, posn.x, posn.y);
 	}
 
 	drawRect(color, posn, w, h) {
-		if (Elemental.IsRigidbody(posn)) posn = posn.posn;
-
 		this.setContextProperty("fillStyle", color);
 		this.context.fillRect(posn.x, posn.y, w, h);
 	}
 
 	drawImage(image, posn, scale=1) {
-		if (Elemental.IsRigidbody(posn)) posn = posn.posn;
-
 		this.context.drawImage(image, posn.x, posn.y, image.width*scale, image.height*scale);
 	}
 
 	drawSprite(sprite, posn) {
-		if (Elemental.IsRigidbody(posn)) {
-			sprite.rotation = posn.rotation;
-			posn = posn.posn;
-		}
-
 		sprite.drawOnCanvas(this, posn);
 	}
 }
@@ -740,6 +726,10 @@ Elemental.Helpers.RandomString = function() {
 	var s1 = Math.random().toString(36).substring(2, 15);
 	var s2 = Math.random().toString(36).substring(2, 15);
 	return s1 + s2
+}
+
+Elemental.Helpers.Clone = function(obj) {
+	return JSON.parse(JSON.stringify(obj));
 }
 
 // Timer class, for keeping a constant framerate

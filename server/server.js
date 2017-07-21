@@ -295,6 +295,10 @@ Elemental.Helpers.RandomString = function() {
 	return s1 + s2
 }
 
+Elemental.Helpers.Clone = function(obj) {
+	return JSON.parse(JSON.stringify(obj));
+}
+
 exports.Helpers = Elemental.Helpers;
 
 // Vector class and function definitions

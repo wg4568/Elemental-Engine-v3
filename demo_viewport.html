@@ -28,11 +28,13 @@ game.start(function() {
 	if (game.keyHeld(Elemental.Keycodes.D)) movement.x += move_speed;
 
 	player_posn.addForce(movement);
+	player_posn.logic();
+
+	player_sprite.rotation = player_posn.rotation;
 
 	viewport.drawFill("#75ffc1");
 	viewport.drawSprite(player_sprite, player_posn.posn);
 
-	player_posn.logic();
 });
 
 </script>
