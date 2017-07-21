@@ -186,7 +186,7 @@ exports.Server = Elemental.Server;
 // Rigidbody class, for basic movement
 Elemental.Rigidbody = class {
 	constructor() {
-		this.posn = 0;
+		this.posn = Elemental.Vector.Empty;
 		this.velocity = Elemental.Vector.Empty;
 
 		this.rotation = 0;
@@ -197,17 +197,21 @@ Elemental.Rigidbody = class {
 		this.friction = 1;
 	}
 
+	static IsRigidbody(obj) {
+		return obj instanceof Elemental.Rigidbody;
+	}
+
 	addForce(force) {
 		this.velocity = Elemental.Vector.Add(this.velocity, force);
 	}
 
 	addRotation(speed) {
-		this.rotation += speed;
+		this.angular += speed;
 	}
 
 	logic() {
 		this.velocity = Elemental.Vector.Multiply(this.velocity, this.friction);
-		this.angular = this.rotation * this.friction;
+		this.angular = this.angular * this.friction;
 
 		if (this.maxSpeed) {
 			if (this.velocity.x > this.maxSpeed) this.velocity.x = this.maxSpeed;
