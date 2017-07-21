@@ -47,6 +47,9 @@ Elemental.Canvas = class {
 	}
 
 	drawLine(p1, p2, color="black", width=1, caps="round") {
+		if (Elemental.IsRigidbody(p1)) p1 = p1.posn;
+		if (Elemental.IsRigidbody(p2)) p2 = p2.posn;
+
 		this.setContextProperty("strokeStyle", color);
 		this.setContextProperty("lineWidth", width);
 		this.setContextProperty("lineCap", caps);
@@ -58,21 +61,32 @@ Elemental.Canvas = class {
 	}
 
 	drawText(font, text, posn, color="black") {
+		if (Elemental.IsRigidbody(posn)) posn = posn.posn;
+
 		this.setContextProperty("fillStyle", color);
 		this.setContextProperty("font", font);
 		this.context.fillText(text, posn.x, posn.y);
 	}
 
 	drawRect(color, posn, w, h) {
+		if (Elemental.IsRigidbody(posn)) posn = posn.posn;
+
 		this.setContextProperty("fillStyle", color);
 		this.context.fillRect(posn.x, posn.y, w, h);
 	}
 
 	drawImage(image, posn, scale=1) {
+		if (Elemental.IsRigidbody(posn)) posn = posn.posn;
+
 		this.context.drawImage(image, posn.x, posn.y, image.width*scale, image.height*scale);
 	}
 
 	drawSprite(sprite, posn) {
+		if (Elemental.IsRigidbody(posn)) {
+			sprite.rotation = posn.rotation;
+			posn = posn.posn;
+		}
+
 		sprite.drawOnCanvas(this, posn);
 	}
 }
@@ -342,7 +356,7 @@ Elemental.Network = class {
 // Rigidbody class, for basic movement
 Elemental.Rigidbody = class {
 	constructor() {
-		this.posn = 0;
+		this.posn = Elemental.Vector.Empty;
 		this.velocity = Elemental.Vector.Empty;
 
 		this.rotation = 0;
@@ -353,17 +367,21 @@ Elemental.Rigidbody = class {
 		this.friction = 1;
 	}
 
+	static IsRigidbody(obj) {
+		return obj instanceof Elemental.Rigidbody;
+	}
+
 	addForce(force) {
 		this.velocity = Elemental.Vector.Add(this.velocity, force);
 	}
 
 	addRotation(speed) {
-		this.rotation += speed;
+		this.angular += speed;
 	}
 
 	logic() {
 		this.velocity = Elemental.Vector.Multiply(this.velocity, this.friction);
-		this.angular = this.rotation * this.friction;
+		this.angular = this.angular * this.friction;
 
 		if (this.maxSpeed) {
 			if (this.velocity.x > this.maxSpeed) this.velocity.x = this.maxSpeed;
