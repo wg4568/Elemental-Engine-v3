@@ -349,6 +349,7 @@ Elemental.Rigidbody = class {
 		this.angular = 0;
 
 		this.maxSpeed = null;
+		this.zero_cap = 0.001;
 
 		this.friction = 1;
 	}
@@ -375,6 +376,9 @@ Elemental.Rigidbody = class {
 			if (this.velocity.y > this.maxSpeed) this.velocity.y = this.maxSpeed;
 			if (this.velocity.y < -this.maxSpeed) this.velocity.y = -this.maxSpeed;
 		}
+
+		if (Math.abs(this.velocity.x) < this.zero_cap) this.velocity.x = 0;
+		if (Math.abs(this.velocity.y) < this.zero_cap) this.velocity.y = 0;
 
 		this.posn = Elemental.Vector.Add(this.posn, this.velocity);
 		this.rotation = this.rotation + this.angular;
