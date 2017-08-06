@@ -102,10 +102,6 @@ game.start(function() {
 	if (reqPos.y > tankPos.y) correction.y += maxCorrection;
 	if (reqPos.y < tankPos.y) correction.y -= maxCorrection;
 
-	if (game.keyPressed(Elemental.Keycodes.SPACE)) {
-		network.call("chat", {"hello": 1234});
-	}
-
 	// Update client-side position
 	tankPos = Elemental.Vector.Add(tankPos, movement, correction);
 

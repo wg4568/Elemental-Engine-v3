@@ -25,10 +25,6 @@ server.onDisconnect = function(client) {
 	console.log("DISCONNECT", client.string());
 }
 
-server.event("chat", function(data){
-	console.log(data);
-});
-
 // Called every frame (60 times a second)
 server.gameLogic = function() {
 	// Store a bunch of info about all connected players in an array
