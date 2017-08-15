@@ -206,7 +206,8 @@ Elemental.Game = class {
 
 	mouseMoveEvent(event) {
 		var mousePosRaw = new Elemental.Vector(event.offsetX, event.offsetY);
-		this.mousePos = this.viewport.canvasToWorld(mousePosRaw);
+		// this.mousePos = this.viewport.canvasToWorld(mousePosRaw);
+		this.mousePos = mousePosRaw;
 
 		if (this.network) this.network.mouseMoveEvent(this.mousePos);
 	}
