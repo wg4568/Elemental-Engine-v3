@@ -210,7 +210,7 @@ Elemental.Game = class {
 		// this.mousePos = this.viewport.canvasToWorld(mousePosRaw);
 		this.mousePos = mousePosRaw;
 
-		if (this.network) this.network.mouseMoveEvent(this.mousePos);
+		if (this.network) this.network.mouseMoveEvent(this.viewport.canvasToWorld(this.mousePos));
 	}
 
 	runSpinoff(so) {
