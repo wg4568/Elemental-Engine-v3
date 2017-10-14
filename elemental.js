@@ -131,8 +131,9 @@ Elemental.Viewport = class {
 // Game class, handles timing, user input, etc
 Elemental.Game = class {
 	constructor(viewport, network=null) {
-		this.viewport = viewport
+		this.viewport = viewport;
 		this.network = network;
+		this.frame = 0;
 
 		this.keyboardState = {pressed: {}, held: {}, released: {}};
 		this.mouseState = {pressed: {}, held: {}, released: {}};
@@ -239,6 +240,8 @@ Elemental.Game = class {
 		});
 
 		Elemental.Timer.Start(function(time){
+
+			parent.frame++;
 
 			func(parent, time);
 
