@@ -345,8 +345,8 @@ Elemental.Network = class {
 
 // Rigidbody class, for basic movement
 Elemental.Rigidbody = class {
-	constructor() {
-		this.posn = Elemental.Vector.Empty;
+	constructor(posn) {
+		this.posn = posn;
 		this.velocity = Elemental.Vector.Empty;
 
 		this.rotation = 0;
