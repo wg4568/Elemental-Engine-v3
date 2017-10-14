@@ -689,6 +689,7 @@ Elemental.Helpers.DistanceBetween = function(point1, point2) {
 }
 
 Elemental.Helpers.StepBetween = function(point1, point2) {
+	if (point1.x == 0 && point1.y == 0 && point2.x == 0 && point2.y == 0) return Elemental.Vector.Empty;
 	var hype = Elemental.Helpers.DistanceBetween(point1, point2);
 	var dx = (point1.x-point2.x)/hype;
 	var dy = (point1.y-point2.y)/hype;
